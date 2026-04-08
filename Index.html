@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title>Árbol de Habilidades - Facciones</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    /* ========== VARIABLES CSS ========== */
+    :root {
+      --bg-body: #f1f5f9;
+      --bg-sidebar: #ffffff;
+      --border-sidebar: #e2e8f0;
+      --text-primary: #0f172a;
+      --text-secondary: #475569;
+      --bg-faction-item: #f8fafc;
+      --bg-faction-item-hover: #e5e7eb;
+      --bg-faction-active: #3b82f6;
+      --bg-card: #ffffff;
+      --border-card: #e2e8f0;
+      --shadow: rgba(0,0,0,0.1);
+      --tooltip-bg: #ffffff;
+      --tooltip-text: #0f172a;
+      --tooltip-border: #cbd5e1;
+      --icon-bg: #f1f5f9;
+      --line-color: #94a3b8;
+      --button-bg: #e2e8f0;
+      --button-text: #0f172a;
+      --modal-bg: #ffffff;
+      --input-border: #cbd5e1;
+      --tree-bg: #ffffff80;
+    }
+
+    body.dark-mode {
+      --bg-body: #0f172a;
+      --bg-sidebar: #1e293b;
+      --border-sidebar: #334155;
+      --text-primary: #f1f5f9;
+      --text-secondary: #cbd5e1;
+      --bg-faction-item: #334155;
+      --bg-faction-item-hover: #475569;
+      --bg-faction-active: #2563eb;
+      --bg-card: #1e293b;
+      --border-card: #334155;
+      --shadow: rgba(0,0,0,0.3);
+      --tooltip-bg: #1e293b;
+      --tooltip-text: #f1f5f9;
+      --tooltip-border: #475569;
+      --icon-bg: #334155;
+      --line-color: #94a3b8;
+      --button-bg: #334155;
+      --button-text: #f1f5f9;
+      --modal-bg: #1e293b;
+      --input-border: #475569;
+      --tree-bg: #1e293b80;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: system-ui, 'Segoe UI', 'Inter', sans-serif; }
+    body { background: var(--bg-body); height: 100vh; display: flex; overflow: hidden; transition: background 0.2s, color 0.2s; }
+    .sidebar { width: 280px; background: var(--bg-sidebar); border-right: 1px solid var(--border-sidebar); display: flex; flex-direction: column; padding: 1.5rem; gap: 1rem; overflow-y: auto; z-index: 10; }
+    .sidebar h2 { font-size: 1.3rem; color: var(--text-primary); }
+    .search-box { padding: 0.5rem; border: 1px solid var(--input-border); border-radius: 0.75rem; width: 100%; background: var(--bg-card); color: var(--text-primary); }
+    .faction-list { list-style: none; display: flex; flex-direction: column; gap: 0.5rem; flex: 1; overflow-y: auto; }
+    .faction-item { padding: 0.75rem; background: var(--bg-faction-item); border-radius: 0.75rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; color: var(--text-primary); }
+    .faction-item.active { background: var(--bg-faction-active); color: white; }
+    .delete-faction-btn { background: none; border: none; color: #ef4444; cursor: pointer; font-size: 1.2rem; display: none; }
+    .admin-mode .delete-faction-btn { display: inline-block; }
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 1.5rem; }
+    .top-bar { display: flex; justify-content: flex-end; gap: 1rem; margin-bottom: 1rem; }
+    .role-btn, .theme-btn { padding: 0.5rem 1rem; border: none; border-radius: 2rem; font-weight: 600; cursor: pointer; background: var(--button-bg); color: var(--button-text); }
+    .role-btn.admin-active { background: #8b5cf6; color: white; }
+    .role-btn.editor-active { background: #3b82f6; color: white; }
+    .faction-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem; }
+    .faction-title { font-size: 1.8rem; font-weight: bold; background: linear-gradient(135deg, #c505df, #3b82f6); background-clip: text; -webkit-background-clip: text; color: transparent; }
+    .tree-container {
+      position: relative;
+      background: var(--tree-bg);
+      border-radius: 2rem;
+      padding: 1rem;
+      overflow-y: auto;
+      overflow-x: hidden;
+      flex: 1;
+      min-height: 0;
+    }
+    .tree-canvas { position: relative; }
+    .skill-node { position: absolute; display: flex; flex-direction: column; align-items: center; cursor: pointer; transition: transform 0.1s; z-index: 5; }
+    .skill-node img { width: 70px; height: 70px; object-fit: contain; background: var(--icon-bg); border-radius: 16px; padding: 8px; box-shadow: 0 4px 8px var(--shadow); }
+    .skill-node.locked img { filter: grayscale(1) brightness(0.6); }
+    .skill-node span { margin-top: 8px; font-size: 0.75rem; font-weight: 500; background: var(--button-bg); padding: 4px 10px; border-radius: 20px; max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary); }
+    .node-admin-controls { position: absolute; top: -10px; right: -10px; background: var(--bg-card); border-radius: 20px; padding: 2px 6px; display: flex; gap: 4px; box-shadow: 0 1px 3px var(--shadow); }
+    .node-admin-controls button { background: none; border: none; cursor: pointer; font-size: 0.7rem; color: var(--text-primary); }
+    .order-controls { position: absolute; bottom: -25px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px; background: var(--bg-card); padding: 2px 6px; border-radius: 20px; box-shadow: 0 1px 2px var(--shadow); }
+    .order-controls button { background: none; border: none; cursor: pointer; font-size: 0.7rem; padding: 2px 4px; color: var(--text-primary); }
+    svg.lines-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+    .add-skill-btn, .add-faction-btn { background: #10b981; color: white; border: none; padding: 0.5rem 1rem; border-radius: 2rem; cursor: pointer; font-weight: bold; }
+    .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+    .modal-content { background: var(--modal-bg); padding: 2rem; border-radius: 1.5rem; width: 450px; max-width: 90%; color: var(--text-primary); }
+    .modal-content input, .modal-content textarea, .modal-content select { width: 100%; margin: 0.5rem 0; padding: 0.5rem; border-radius: 0.5rem; border: 1px solid var(--input-border); background: var(--bg-card); color: var(--text-primary); }
+    .hidden { display: none; }
+    /* Tooltip flotante */
+    .floating-tooltip {
+      position: fixed;
+      background-color: var(--tooltip-bg);
+      color: var(--tooltip-text);
+      border: 1px solid var(--tooltip-border);
+      border-radius: 12px;
+      padding: 10px 14px;
+      max-width: 280px;
+      min-width: 180px;
+      font-size: 0.8rem;
+      line-height: 1.4;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+      z-index: 100000;
+      pointer-events: none;
+      white-space: normal;
+      word-wrap: break-word;
+      transition: opacity 0.15s;
+    }
+    .floating-tooltip strong, .floating-tooltip b { font-weight: 700; }
+    .floating-tooltip ul, .floating-tooltip ol { padding-left: 1.2rem; margin: 0.3rem 0; }
+    .floating-tooltip li { margin: 0.2rem 0; }
+    .floating-tooltip p { margin: 0.3rem 0; }
+    @media (max-width: 768px) { body { flex-direction: column; } .sidebar { width: 100%; max-height: 40%; } .skill-node img { width: 50px; height: 50px; } .floating-tooltip { max-width: 220px; font-size: 0.7rem; } }
+  </style>
+</head>
+<body class="dark-mode">
+
+<div class="sidebar">
+  <h2>🏰 Facciones</h2>
+  <input type="text" id="searchFaction" class="search-box" placeholder="Buscar facción...">
+  <ul id="factionList" class="faction-list"></ul>
+  <button id="addFactionBtn" class="add-faction-btn hidden">+ Nueva facción</button>
+</div>
+
+<div class="main">
+  <div class="top-bar">
+    <button id="themeToggleBtn" class="theme-btn">☀️ Modo Claro</button>
+    <button id="editorModeBtn" class="role-btn">📝 Modo Editor</button>
+    <button id="adminModeBtn" class="role-btn">👑 Modo Admin</button>
+  </div>
+  <div class="faction-header">
+    <h1 id="currentFactionName" class="faction-title">Selecciona una facción</h1>
+    <div>
+      <button id="newSkillBtn" class="add-skill-btn hidden">➕ Nueva habilidad</button>
+      <div id="adminFactionActions" class="hidden" style="display: inline-block; margin-left: 0.5rem;">
+        <input type="text" id="editFactionNameInput" placeholder="Nuevo nombre" style="width: 150px;">
+        <button id="saveFactionNameBtn">Renombrar</button>
+      </div>
+    </div>
+  </div>
+  <div id="treeContainer" class="tree-container">
+    <div id="treeCanvas" class="tree-canvas"></div>
+  </div>
+</div>
+
+<script>
+  // ========== CONFIGURACIÓN ==========
+  const SUPABASE_URL = 'https://gnallpleevvuvfdjscjw.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_SxAu4QAwLXs9iVBmDZoDJg_SPlOO4sf'; // Reemplazar si es necesario
+  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // ========== MODO OSCURO ==========
+  function initTheme() {
+    const storedTheme = localStorage.getItem('theme');
+    if (storedTheme === 'light') {
+      document.body.classList.remove('dark-mode');
+      document.getElementById('themeToggleBtn').innerHTML = '🌙 Modo Oscuro';
+    } else {
+      document.body.classList.add('dark-mode');
+      document.getElementById('themeToggleBtn').innerHTML = '☀️ Modo Claro';
+    }
+  }
+  function toggleTheme() {
+    if (document.body.classList.contains('dark-mode')) {
+      document.body.classList.remove('dark-mode');
+      localStorage.setItem('theme', 'light');
+      document.getElementById('themeToggleBtn').innerHTML = '🌙 Modo Oscuro';
+    } else {
+      document.body.classList.add('dark-mode');
+      localStorage.setItem('theme', 'dark');
+      document.getElementById('themeToggleBtn').innerHTML = '☀️ Modo Claro';
+    }
+    if (currentFactionId) renderTree(currentFactionId);
+  }
+  document.getElementById('themeToggleBtn').addEventListener('click', toggleTheme);
+
+  let currentRole = 'public';
+  let currentFactionId = null;
+  let allFactions = [];
+  let allSkills = [];
+  let factionSkills = [];
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, function(m) {
+      if (m === '&') return '&amp;';
+      if (m === '<') return '&lt;';
+      if (m === '>') return '&gt;';
+      return m;
+    });
+  }
+
+  // ========== TOOLTIP FLOTANTE ==========
+  let currentTooltip = null;
+  let tooltipTimeout = null;
+
+  function showTooltip(content, targetElement) {
+    if (currentTooltip) {
+      currentTooltip.remove();
+      currentTooltip = null;
+    }
+    if (tooltipTimeout) clearTimeout(tooltipTimeout);
+    const tooltip = document.createElement('div');
+    tooltip.className = 'floating-tooltip';
+    tooltip.innerHTML = content;
+    document.body.appendChild(tooltip);
+    currentTooltip = tooltip;
+    const rect = targetElement.getBoundingClientRect();
+    const tooltipRect = tooltip.getBoundingClientRect();
+    let top = rect.bottom + 8;
+    let left = rect.left + (rect.width / 2) - (tooltipRect.width / 2);
+    if (top + tooltipRect.height > window.innerHeight) {
+      top = rect.top - tooltipRect.height - 8;
+    }
+    if (left < 8) left = 8;
+    if (left + tooltipRect.width > window.innerWidth - 8) {
+      left = window.innerWidth - tooltipRect.width - 8;
+    }
+    tooltip.style.top = `${top}px`;
+    tooltip.style.left = `${left}px`;
+    tooltip.style.opacity = '1';
+  }
+
+  function hideTooltip() {
+    if (currentTooltip) {
+      currentTooltip.remove();
+      currentTooltip = null;
+    }
+  }
+
+  // ========== CARGAR DATOS ==========
+  async function loadAllData() {
+    window.addEventListener('resize', () => {
+      if (currentFactionId) renderTree(currentFactionId);
+    });
+    const [factionsRes, skillsRes, factionSkillsRes] = await Promise.all([
+      supabaseClient.from('factions').select('*').order('name'),
+      supabaseClient.from('skills').select('*').order('position', { ascending: true }),
+      supabaseClient.from('faction_skills').select('*')
+    ]);
+    if (factionsRes.error) console.error(factionsRes.error);
+    if (skillsRes.error) console.error(skillsRes.error);
+    if (factionSkillsRes.error) console.error(factionSkillsRes.error);
+    
+    allFactions = factionsRes.data || [];
+    allSkills = skillsRes.data || [];
+    factionSkills = factionSkillsRes.data || [];
+    
+    let rootSkill = allSkills.find(s => s.name === 'Creación de la Facción');
+    if (!rootSkill && (currentRole === 'admin' || currentRole === 'editor')) {
+      const { data: newRoot, error } = await supabaseClient.from('skills').insert({
+        name: 'Creación de la Facción',
+        description: 'Habilidad fundamental de la facción. Siempre desbloqueada.',
+        icon_url: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+        parent_id: null,
+        position: 0
+      }).select().single();
+      if (!error && newRoot) {
+        allSkills.push(newRoot);
+        rootSkill = newRoot;
+      }
+    }
+    if (rootSkill) {
+      for (let faction of allFactions) {
+        const exists = factionSkills.some(fs => fs.faction_id === faction.id && fs.skill_id === rootSkill.id);
+        if (!exists) {
+          await supabaseClient.from('faction_skills').upsert({ faction_id: faction.id, skill_id: rootSkill.id, is_unlocked: true });
+          factionSkills.push({ faction_id: faction.id, skill_id: rootSkill.id, is_unlocked: true });
+        }
+      }
+    }
+    
+    renderFactionList();
+    if (currentFactionId && !allFactions.some(f => f.id === currentFactionId)) currentFactionId = null;
+    if (!currentFactionId && allFactions.length > 0) currentFactionId = allFactions[0].id;
+    if (currentFactionId) renderTree(currentFactionId);
+    else document.getElementById('treeCanvas').innerHTML = '<p style="text-align:center;">No hay facciones. Crea una como editor o admin.</p>';
+  }
+
+  function renderFactionList() {
+    const searchTerm = document.getElementById('searchFaction').value.toLowerCase();
+    const filtered = allFactions.filter(f => f.name.toLowerCase().includes(searchTerm));
+    const container = document.getElementById('factionList');
+    container.innerHTML = filtered.map(faction => `
+      <li class="faction-item ${currentFactionId === faction.id ? 'active' : ''}" data-id="${faction.id}">
+        <span class="faction-name">${escapeHtml(faction.name)}</span>
+        ${currentRole === 'admin' ? `<button class="delete-faction-btn" data-id="${faction.id}">🗑️</button>` : ''}
+      </li>
+    `).join('');
+    
+    document.querySelectorAll('.faction-item').forEach(el => {
+      el.addEventListener('click', (e) => {
+        if (e.target.classList.contains('delete-faction-btn')) return;
+        currentFactionId = el.dataset.id;
+        renderFactionList();
+        renderTree(currentFactionId);
+      });
+    });
+    
+    if (currentRole === 'admin') {
+      document.querySelectorAll('.delete-faction-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const factionId = btn.dataset.id;
+          if (confirm('¿Eliminar facción? Se perderán todos los desbloqueos.')) {
+            await supabaseClient.from('factions').delete().eq('id', factionId);
+            await loadAllData();
+          }
+        });
+      });
+    }
+  }
+
+  function isUnlocked(factionId, skillId) {
+    const entry = factionSkills.find(fs => fs.faction_id === factionId && fs.skill_id === skillId);
+    return entry ? entry.is_unlocked : false;
+  }
+
+  function canUnlock(factionId, skill) {
+    if (skill.name === 'Creación de la Facción') return true;
+    if (!skill.parent_id) return true;
+    const parentSkill = allSkills.find(s => s.id === skill.parent_id);
+    if (!parentSkill) return true;
+    return isUnlocked(factionId, parentSkill.id);
+  }
+
+  // ========== POSICIONAMIENTO DE ÁRBOL ==========
+  function calculatePositions(rootSkills, startX = 400, startY = 80, levelGapX = 220, levelGapY = 130) {
+    const childrenMap = new Map();
+    allSkills.forEach(skill => {
+      if (skill.parent_id) {
+        if (!childrenMap.has(skill.parent_id)) childrenMap.set(skill.parent_id, []);
+        childrenMap.get(skill.parent_id).push(skill);
+      }
+    });
+    for (let [parent, children] of childrenMap.entries()) {
+      children.sort((a,b) => (a.position || 0) - (b.position || 0));
+    }
+    
+    const roots = allSkills.filter(s => !s.parent_id);
+    if (roots.length === 0) return new Map();
+    
+    const positions = new Map();
+    function dfs(skill, depth, offsetX) {
+      const y = startY + depth * levelGapY;
+      positions.set(skill.id, { x: offsetX, y });
+      const children = childrenMap.get(skill.id) || [];
+      const totalWidth = (children.length - 1) * levelGapX;
+      let childX = offsetX - totalWidth / 2;
+      for (let child of children) {
+        dfs(child, depth + 1, childX);
+        childX += levelGapX;
+      }
+      if (children.length > 0) {
+        const firstChildX = positions.get(children[0].id).x;
+        const lastChildX = positions.get(children[children.length-1].id).x;
+        const centerX = (firstChildX + lastChildX) / 2;
+        positions.set(skill.id, { x: centerX, y });
+      }
+    }
+    
+    let globalOffset = startX;
+    for (let root of roots) {
+      dfs(root, 0, globalOffset);
+      globalOffset += 300;
+    }
+    return positions;
+  }
+
+  function drawLines(positions) {
+    const oldSvg = document.querySelector('.lines-layer');
+    if (oldSvg) oldSvg.remove();
+    const container = document.getElementById('treeCanvas');
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.classList.add('lines-layer');
+    svg.style.position = 'absolute';
+    svg.style.top = 0;
+    svg.style.left = 0;
+    svg.style.width = '100%';
+    svg.style.height = '100%';
+    svg.style.pointerEvents = 'none';
+    
+    const parentOffset = 45;
+    const childOffset = 0;
+    
+    for (let skill of allSkills) {
+      if (!skill.parent_id) continue;
+      const parentPos = positions.get(skill.parent_id);
+      const childPos = positions.get(skill.id);
+      if (!parentPos || !childPos) continue;
+      const x1 = parentPos.x;
+      const y1 = parentPos.y + parentOffset;
+      const x2 = childPos.x;
+      const y2 = childPos.y - childOffset;
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const cp1x = x1 + dx * 0.5;
+      const cp1y = y1;
+      const cp2x = x2 - dx * 0.5;
+      const cp2y = y2;
+      const d = `M ${x1} ${y1} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${x2} ${y2}`;
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', d);
+      path.setAttribute('stroke', 'var(--line-color)');
+      path.setAttribute('stroke-width', '2');
+      path.setAttribute('stroke-dasharray', '6,6');
+      path.setAttribute('fill', 'none');
+      svg.appendChild(path);
+    }
+    container.appendChild(svg);
+  }
+
+  async function renderTree(factionId) {
+    if (!factionId) return;
+    const faction = allFactions.find(f => f.id === factionId);
+    document.getElementById('currentFactionName').innerText = faction ? faction.name : 'Facción';
+    
+    const positions = calculatePositions(allSkills.filter(s => !s.parent_id), 400, 80, 220, 130);
+    if (positions.size === 0) {
+      document.getElementById('treeCanvas').innerHTML = '<p>No hay habilidades. Crea una como administrador.</p>';
+      return;
+    }
+    
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (let skill of allSkills) {
+      const pos = positions.get(skill.id);
+      if (pos) {
+        minX = Math.min(minX, pos.x);
+        maxX = Math.max(maxX, pos.x);
+        minY = Math.min(minY, pos.y);
+        maxY = Math.max(maxY, pos.y);
+      }
+    }
+    const margin = 50;
+    const canvasWidth = (maxX - minX) + 2 * margin;
+    const canvasHeight = (maxY - minY) + 2 * margin;
+    const canvasOffsetX = minX - margin;
+    const canvasOffsetY = minY - margin;
+    
+    let nodesHtml = '';
+    for (let skill of allSkills) {
+      const pos = positions.get(skill.id);
+      if (!pos) continue;
+      const unlocked = isUnlocked(factionId, skill.id);
+      const lockedClass = (!unlocked && skill.name !== 'Creación de la Facción') ? 'locked' : '';
+      const iconUrl = skill.icon_url || 'https://cdn-icons-png.flaticon.com/512/1055/1055687.png';
+      let adminButtons = '';
+      if (currentRole === 'admin' && skill.name !== 'Creación de la Facción') {
+        adminButtons = `<div class="node-admin-controls">
+          <button class="edit-skill" data-id="${skill.id}">✏️</button>
+          <button class="delete-skill" data-id="${skill.id}">🗑️</button>
+        </div>`;
+      } else if (currentRole === 'admin' && skill.name === 'Creación de la Facción') {
+        adminButtons = `<div class="node-admin-controls">
+          <button class="edit-skill" data-id="${skill.id}">✏️</button>
+        </div>`;
+      } else if (currentRole === 'editor' && skill.name === 'Creación de la Facción') {
+        adminButtons = `<div class="node-admin-controls">
+          <button class="edit-skill" data-id="${skill.id}">✏️</button>
+        </div>`;
+      }
+      let orderButtons = '';
+      if (currentRole === 'admin' && skill.parent_id) {
+        const siblings = allSkills.filter(s => s.parent_id === skill.parent_id).sort((a,b) => (a.position||0)-(b.position||0));
+        const idx = siblings.findIndex(s => s.id === skill.id);
+        if (siblings.length > 1) {
+          orderButtons = `<div class="order-controls">
+            ${idx > 0 ? `<button class="move-up" data-id="${skill.id}">↑</button>` : ''}
+            ${idx < siblings.length-1 ? `<button class="move-down" data-id="${skill.id}">↓</button>` : ''}
+          </div>`;
+        }
+      }
+      const relX = pos.x - canvasOffsetX;
+      const relY = pos.y - canvasOffsetY;
+      
+      nodesHtml += `
+        <div class="skill-node ${lockedClass}" data-id="${skill.id}" data-description="${escapeHtml(skill.description || 'Sin descripción').replace(/"/g, '&quot;')}" style="left: ${relX}px; top: ${relY}px; transform: translateX(-50%);">
+          ${adminButtons}
+          <img src="${escapeHtml(iconUrl)}" alt="${escapeHtml(skill.name)}">
+          <span>${escapeHtml(skill.name)}</span>
+          ${orderButtons}
+        </div>
+      `;
+    }
+    
+    const canvasDiv = document.getElementById('treeCanvas');
+    canvasDiv.style.width = `${canvasWidth}px`;
+    canvasDiv.style.height = `${canvasHeight}px`;
+    canvasDiv.innerHTML = nodesHtml;
+    
+    const relativePositions = new Map();
+    for (let skill of allSkills) {
+      const pos = positions.get(skill.id);
+      if (pos) {
+        relativePositions.set(skill.id, { x: pos.x - canvasOffsetX, y: pos.y - canvasOffsetY });
+      }
+    }
+    drawLines(relativePositions);
+    
+    // Tooltips
+    document.querySelectorAll('.skill-node').forEach(node => {
+      node.removeEventListener('mouseenter', node._mouseEnterHandler);
+      node.removeEventListener('mouseleave', node._mouseLeaveHandler);
+      const rawDesc = node.dataset.description;
+      const descHtml = rawDesc.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"');
+      const handlerEnter = () => showTooltip(descHtml, node);
+      const handlerLeave = () => hideTooltip();
+      node.addEventListener('mouseenter', handlerEnter);
+      node.addEventListener('mouseleave', handlerLeave);
+      node._mouseEnterHandler = handlerEnter;
+      node._mouseLeaveHandler = handlerLeave;
+    });
+    
+    // Eventos toggle (editor/admin)
+    if (currentRole === 'editor' || currentRole === 'admin') {
+      document.querySelectorAll('.skill-node').forEach(node => {
+        const skillId = node.dataset.id;
+        const skill = allSkills.find(s => s.id === skillId);
+        if (skill.name === 'Creación de la Facción') return;
+        node.addEventListener('click', async (e) => {
+          if (e.target.closest('.node-admin-controls') || e.target.closest('.order-controls')) return;
+          const currentlyUnlocked = isUnlocked(factionId, skillId);
+          const newState = !currentlyUnlocked;
+          if (newState && !canUnlock(factionId, skill)) {
+            alert('Para desbloquear esta habilidad, primero debes desbloquear su padre.');
+            return;
+          }
+          await supabaseClient.from('faction_skills').upsert({
+            faction_id: factionId,
+            skill_id: skillId,
+            is_unlocked: newState
+          });
+          await loadAllData();
+        });
+      });
+    }
+    
+    // Admin y editor pueden editar habilidades (incluyendo la raíz)
+    if (currentRole === 'admin' || currentRole === 'editor') {
+      document.querySelectorAll('.edit-skill').forEach(btn => {
+        btn.addEventListener('click', (e) => { e.stopPropagation(); openSkillModal(btn.dataset.id); });
+      });
+      // Solo admin puede eliminar habilidades (no editor)
+      if (currentRole === 'admin') {
+        document.querySelectorAll('.delete-skill').forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const skillId = btn.dataset.id;
+            const skill = allSkills.find(s => s.id === skillId);
+            if (skill.name === 'Creación de la Facción') return alert('No se puede eliminar la raíz');
+            if (confirm('¿Eliminar habilidad? Se eliminarán también sus descendientes.')) {
+              await supabaseClient.from('skills').delete().eq('id', skillId);
+              await loadAllData();
+            }
+          });
+        });
+      }
+      // Reordenamiento solo admin
+      if (currentRole === 'admin') {
+        document.querySelectorAll('.move-up').forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const skillId = btn.dataset.id;
+            await moveSkill(skillId, -1);
+          });
+        });
+        document.querySelectorAll('.move-down').forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const skillId = btn.dataset.id;
+            await moveSkill(skillId, 1);
+          });
+        });
+      }
+    }
+  }
+  
+  async function moveSkill(skillId, delta) {
+    const skill = allSkills.find(s => s.id === skillId);
+    if (!skill || !skill.parent_id) return;
+    const siblings = allSkills.filter(s => s.parent_id === skill.parent_id).sort((a,b) => (a.position||0) - (b.position||0));
+    const idx = siblings.findIndex(s => s.id === skillId);
+    const newIdx = idx + delta;
+    if (newIdx < 0 || newIdx >= siblings.length) return;
+    const other = siblings[newIdx];
+    const pos1 = skill.position || 0;
+    const pos2 = other.position || 0;
+    await supabaseClient.from('skills').update({ position: pos2 }).eq('id', skillId);
+    await supabaseClient.from('skills').update({ position: pos1 }).eq('id', other.id);
+    await loadAllData();
+  }
+
+  // ========== MODAL HABILIDAD (raíz totalmente editable) ==========
+  async function openSkillModal(skillId = null) {
+    const isEditing = !!skillId;
+    const skill = isEditing ? allSkills.find(s => s.id === skillId) : null;
+    const isRoot = skill && skill.name === 'Creación de la Facción';
+    
+    const possibleParents = allSkills.filter(s => {
+      if (isEditing && s.id === skillId) return false;
+      if (isEditing && isDescendant(s.id, skillId)) return false;
+      return true;
+    });
+    
+    const modalDiv = document.createElement('div');
+    modalDiv.className = 'modal';
+    modalDiv.innerHTML = `
+      <div class="modal-content">
+        <h3>${isEditing ? 'Editar habilidad' : 'Nueva habilidad'}</h3>
+        <input type="text" id="skillName" placeholder="Nombre" value="${skill ? escapeHtml(skill.name) : ''}">
+        <textarea id="skillDesc" placeholder="Descripción (puedes usar HTML: &lt;b&gt;negrita&lt;/b&gt;, &lt;br&gt;, &lt;ul&gt;&lt;li&gt;lista&lt;/li&gt;&lt;/ul&gt;, etc.)">${skill ? (skill.description || '') : ''}</textarea>
+        <input type="text" id="skillIconUrl" placeholder="URL del icono" value="${skill ? escapeHtml(skill.icon_url || '') : ''}">
+        <label>Habilidad padre (prerrequisito):</label>
+        <select id="parentSelect" ${isRoot ? 'disabled' : ''}>
+          <option value="">-- Ninguno (solo raíz) --</option>
+          ${possibleParents.map(p => `<option value="${p.id}" ${skill && skill.parent_id === p.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}
+        </select>
+        <button id="saveSkillBtn">Guardar</button>
+        <button id="closeModalBtn">Cancelar</button>
+      </div>
+    `;
+    document.body.appendChild(modalDiv);
+    document.getElementById('closeModalBtn').onclick = () => modalDiv.remove();
+    document.getElementById('saveSkillBtn').onclick = async () => {
+      const name = document.getElementById('skillName').value.trim();
+      const desc = document.getElementById('skillDesc').value;
+      const iconUrl = document.getElementById('skillIconUrl').value.trim();
+      const parentId = document.getElementById('parentSelect').value || null;
+      if (!name) return alert('El nombre es obligatorio');
+      if (isEditing) {
+        const updateData = { name, description: desc, icon_url: iconUrl || null };
+        if (!isRoot) {
+          updateData.parent_id = parentId;
+        }
+        await supabaseClient.from('skills').update(updateData).eq('id', skillId);
+      } else {
+        let newPosition = 0;
+        if (parentId) {
+          const siblings = allSkills.filter(s => s.parent_id === parentId);
+          newPosition = siblings.length;
+        }
+        const { error } = await supabaseClient.from('skills').insert({ name, description: desc, icon_url: iconUrl || null, parent_id: parentId, position: newPosition });
+        if (error) alert(error.message);
+      }
+      modalDiv.remove();
+      await loadAllData();
+    };
+  }
+  
+  function isDescendant(possibleAncestorId, skillId) {
+    let current = allSkills.find(s => s.id === possibleAncestorId);
+    while (current && current.parent_id) {
+      if (current.parent_id === skillId) return true;
+      current = allSkills.find(s => s.id === current.parent_id);
+    }
+    return false;
+  }
+
+  async function createFaction() {
+    if (currentRole !== 'admin' && currentRole !== 'editor') {
+      alert('Debes estar en modo Editor o Administrador para crear facciones.');
+      return;
+    }
+    const name = prompt('Nombre de la facción:');
+    if (!name) return;
+    const { data: newFaction, error } = await supabaseClient.from('factions').insert({ name }).select().single();
+    if (error) alert(error.message);
+    else {
+      const rootSkill = allSkills.find(s => s.name === 'Creación de la Facción');
+      if (rootSkill) await supabaseClient.from('faction_skills').upsert({ faction_id: newFaction.id, skill_id: rootSkill.id, is_unlocked: true });
+      await loadAllData();
+    }
+  }
+
+  // ========== AUTENTICACIÓN ==========
+  async function authenticate(role) {
+    const password = prompt(`Contraseña de ${role === 'admin' ? 'Administrador' : 'Editor'}:`);
+    if (!password) return false;
+    const { data, error } = await supabaseClient.from('app_secrets').select('value').eq('key', `${role}_password`).single();
+    if (error || !data) { alert('Error'); return false; }
+    if (password === data.value) {
+      currentRole = role;
+      document.getElementById('adminModeBtn').classList.toggle('admin-active', role === 'admin');
+      document.getElementById('editorModeBtn').classList.toggle('editor-active', role === 'editor');
+      document.body.classList.remove('admin-mode', 'editor-mode');
+      if (role === 'admin') document.body.classList.add('admin-mode');
+      
+      const addFactionBtn = document.getElementById('addFactionBtn');
+      const newSkillBtn = document.getElementById('newSkillBtn');
+      const adminActions = document.getElementById('adminFactionActions');
+      
+      if (role === 'admin') {
+        addFactionBtn.classList.remove('hidden');
+        newSkillBtn.classList.remove('hidden');
+        adminActions.classList.remove('hidden');
+      } else if (role === 'editor') {
+        addFactionBtn.classList.remove('hidden');
+        newSkillBtn.classList.remove('hidden');
+        adminActions.classList.add('hidden');
+      }
+      await loadAllData();
+      return true;
+    } else {
+      alert('Contraseña incorrecta');
+      return false;
+    }
+  }
+
+  // ========== EVENTOS ==========
+  document.getElementById('editorModeBtn').addEventListener('click', () => authenticate('editor'));
+  document.getElementById('adminModeBtn').addEventListener('click', () => authenticate('admin'));
+  document.getElementById('addFactionBtn').addEventListener('click', createFaction);
+  document.getElementById('newSkillBtn').addEventListener('click', () => openSkillModal(null));
+  document.getElementById('saveFactionNameBtn').addEventListener('click', async () => {
+    if (currentRole !== 'admin') return alert('Solo admin puede renombrar facciones');
+    const newName = document.getElementById('editFactionNameInput').value.trim();
+    if (!newName || !currentFactionId) return;
+    await supabaseClient.from('factions').update({ name: newName }).eq('id', currentFactionId);
+    await loadAllData();
+    document.getElementById('editFactionNameInput').value = '';
+  });
+  document.getElementById('searchFaction').addEventListener('input', () => renderFactionList());
+
+  initTheme();
+  loadAllData();
+</script>
+</body>
+</html>
