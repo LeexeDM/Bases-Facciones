@@ -120,7 +120,7 @@
     .floating-tooltip ul, .floating-tooltip ol { padding-left: 1.2rem; margin: 0.3rem 0; }
     .floating-tooltip li { margin: 0.2rem 0; }
     .floating-tooltip p { margin: 0.3rem 0; }
-    @media (max-width: 768px) { body { flex-direction: column; } .sidebar { width: 100%; max-height: 40%; } .skill-node img { width: 50px; height: 50px; } .floating-tooltip { max-width: 1600px; font-size: 0.7rem; } }
+    @media (max-width: 768px) { body { flex-direction: column; } .sidebar { width: 100%; max-height: 40%; } .skill-node img { width: 50px; height: 50px; } .floating-tooltip { max-width: 90vw; font-size: 0.7rem; } }
   </style>
 </head>
 <body class="dark-mode">
@@ -155,8 +155,8 @@
 
 <script>
   // ========== CONFIGURACIÓN ==========
-  const SUPABASE_URL = 'https://gnallpleevvuvfdjscjw.supabase.co';
-  const SUPABASE_ANON_KEY = 'sb_publishable_SxAu4QAwLXs9iVBmDZoDJg_SPlOO4sf'; // Reemplazar si es necesario
+  const SUPABASE_URL = 'https://gnallpleevvufdjscjw.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_SxAu4QAwLXs9iVBmDZoDJg_SPlOO4sf';
   const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   // ========== MODO OSCURO ==========
@@ -256,29 +256,7 @@
     allSkills = skillsRes.data || [];
     factionSkills = factionSkillsRes.data || [];
     
-    let rootSkill = allSkills.find(s => s.name === 'Creación de la Facción');
-    if (!rootSkill && (currentRole === 'admin' || currentRole === 'editor')) {
-      const { data: newRoot, error } = await supabaseClient.from('skills').insert({
-        name: 'Creación de la Facción',
-        description: 'Habilidad fundamental de la facción. Siempre desbloqueada.',
-        icon_url: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
-        parent_id: null,
-        position: 0
-      }).select().single();
-      if (!error && newRoot) {
-        allSkills.push(newRoot);
-        rootSkill = newRoot;
-      }
-    }
-    if (rootSkill) {
-      for (let faction of allFactions) {
-        const exists = factionSkills.some(fs => fs.faction_id === faction.id && fs.skill_id === rootSkill.id);
-        if (!exists) {
-          await supabaseClient.from('faction_skills').upsert({ faction_id: faction.id, skill_id: rootSkill.id, is_unlocked: true });
-          factionSkills.push({ faction_id: faction.id, skill_id: rootSkill.id, is_unlocked: true });
-        }
-      }
-    }
+    // Ya no se crea ninguna habilidad base automáticamente
     
     renderFactionList();
     if (currentFactionId && !allFactions.some(f => f.id === currentFactionId)) currentFactionId = null;
@@ -327,8 +305,8 @@
   }
 
   function canUnlock(factionId, skill) {
-    if (skill.name === 'Creación de la Facción') return true;
-    if (!skill.parent_id) return true;
+    // Sin habilidad base especial: se necesita que el padre esté desbloqueado
+    if (!skill.parent_id) return true; // las habilidades raíz siempre se pueden desbloquear
     const parentSkill = allSkills.find(s => s.id === skill.parent_id);
     if (!parentSkill) return true;
     return isUnlocked(factionId, parentSkill.id);
@@ -452,19 +430,16 @@
       const pos = positions.get(skill.id);
       if (!pos) continue;
       const unlocked = isUnlocked(factionId, skill.id);
-      const lockedClass = (!unlocked && skill.name !== 'Creación de la Facción') ? 'locked' : '';
+      const lockedClass = (!unlocked) ? 'locked' : '';  // ya no hay excepción para raíz
       const iconUrl = skill.icon_url || 'https://cdn-icons-png.flaticon.com/512/1055/1055687.png';
       let adminButtons = '';
-      if (currentRole === 'admin' && skill.name !== 'Creación de la Facción') {
+      if (currentRole === 'admin') {
         adminButtons = `<div class="node-admin-controls">
           <button class="edit-skill" data-id="${skill.id}">✏️</button>
           <button class="delete-skill" data-id="${skill.id}">🗑️</button>
         </div>`;
-      } else if (currentRole === 'admin' && skill.name === 'Creación de la Facción') {
-        adminButtons = `<div class="node-admin-controls">
-          <button class="edit-skill" data-id="${skill.id}">✏️</button>
-        </div>`;
-      } else if (currentRole === 'editor' && skill.name === 'Creación de la Facción') {
+      } else if (currentRole === 'editor') {
+        // Los editores también pueden editar cualquier habilidad (incluidas raíces)
         adminButtons = `<div class="node-admin-controls">
           <button class="edit-skill" data-id="${skill.id}">✏️</button>
         </div>`;
@@ -521,12 +496,11 @@
       node._mouseLeaveHandler = handlerLeave;
     });
     
-    // Eventos toggle (editor/admin)
+    // Eventos toggle (editor/admin) - todas las habilidades pueden desbloquearse si cumplen padre
     if (currentRole === 'editor' || currentRole === 'admin') {
       document.querySelectorAll('.skill-node').forEach(node => {
         const skillId = node.dataset.id;
         const skill = allSkills.find(s => s.id === skillId);
-        if (skill.name === 'Creación de la Facción') return;
         node.addEventListener('click', async (e) => {
           if (e.target.closest('.node-admin-controls') || e.target.closest('.order-controls')) return;
           const currentlyUnlocked = isUnlocked(factionId, skillId);
@@ -545,19 +519,17 @@
       });
     }
     
-    // Admin y editor pueden editar habilidades (incluyendo la raíz)
+    // Admin y editor pueden editar habilidades (todos los nodos)
     if (currentRole === 'admin' || currentRole === 'editor') {
       document.querySelectorAll('.edit-skill').forEach(btn => {
         btn.addEventListener('click', (e) => { e.stopPropagation(); openSkillModal(btn.dataset.id); });
       });
-      // Solo admin puede eliminar habilidades (no editor)
+      // Solo admin puede eliminar habilidades
       if (currentRole === 'admin') {
         document.querySelectorAll('.delete-skill').forEach(btn => {
           btn.addEventListener('click', async (e) => {
             e.stopPropagation();
             const skillId = btn.dataset.id;
-            const skill = allSkills.find(s => s.id === skillId);
-            if (skill.name === 'Creación de la Facción') return alert('No se puede eliminar la raíz');
             if (confirm('¿Eliminar habilidad? Se eliminarán también sus descendientes.')) {
               await supabaseClient.from('skills').delete().eq('id', skillId);
               await loadAllData();
@@ -600,11 +572,10 @@
     await loadAllData();
   }
 
-  // ========== MODAL HABILIDAD (raíz totalmente editable) ==========
+  // ========== MODAL HABILIDAD (ya no hay raíz especial) ==========
   async function openSkillModal(skillId = null) {
     const isEditing = !!skillId;
     const skill = isEditing ? allSkills.find(s => s.id === skillId) : null;
-    const isRoot = skill && skill.name === 'Creación de la Facción';
     
     const possibleParents = allSkills.filter(s => {
       if (isEditing && s.id === skillId) return false;
@@ -621,8 +592,8 @@
         <textarea id="skillDesc" placeholder="Descripción (puedes usar HTML: &lt;b&gt;negrita&lt;/b&gt;, &lt;br&gt;, &lt;ul&gt;&lt;li&gt;lista&lt;/li&gt;&lt;/ul&gt;, etc.)">${skill ? (skill.description || '') : ''}</textarea>
         <input type="text" id="skillIconUrl" placeholder="URL del icono" value="${skill ? escapeHtml(skill.icon_url || '') : ''}">
         <label>Habilidad padre (prerrequisito):</label>
-        <select id="parentSelect" ${isRoot ? 'disabled' : ''}>
-          <option value="">-- Ninguno (solo raíz) --</option>
+        <select id="parentSelect">
+          <option value="">-- Ninguno (habilidad raíz) --</option>
           ${possibleParents.map(p => `<option value="${p.id}" ${skill && skill.parent_id === p.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}
         </select>
         <button id="saveSkillBtn">Guardar</button>
@@ -638,10 +609,7 @@
       const parentId = document.getElementById('parentSelect').value || null;
       if (!name) return alert('El nombre es obligatorio');
       if (isEditing) {
-        const updateData = { name, description: desc, icon_url: iconUrl || null };
-        if (!isRoot) {
-          updateData.parent_id = parentId;
-        }
+        const updateData = { name, description: desc, icon_url: iconUrl || null, parent_id: parentId };
         await supabaseClient.from('skills').update(updateData).eq('id', skillId);
       } else {
         let newPosition = 0;
@@ -676,8 +644,7 @@
     const { data: newFaction, error } = await supabaseClient.from('factions').insert({ name }).select().single();
     if (error) alert(error.message);
     else {
-      const rootSkill = allSkills.find(s => s.name === 'Creación de la Facción');
-      if (rootSkill) await supabaseClient.from('faction_skills').upsert({ faction_id: newFaction.id, skill_id: rootSkill.id, is_unlocked: true });
+      // Ya no se asigna ninguna habilidad base por defecto
       await loadAllData();
     }
   }
