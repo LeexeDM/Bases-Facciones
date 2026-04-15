@@ -86,7 +86,7 @@
     .skill-node { position: absolute; display: flex; flex-direction: column; align-items: center; cursor: pointer; transition: transform 0.1s; z-index: 5; }
     .skill-node img { width: 70px; height: 70px; object-fit: contain; background: var(--icon-bg); border-radius: 16px; padding: 8px; box-shadow: 0 4px 8px var(--shadow); }
     .skill-node.locked img { filter: grayscale(1) brightness(0.6); }
-    .skill-node span { margin-top: 8px; font-size: 0.75rem; font-weight: 500; background: var(--button-bg); padding: 4px 10px; border-radius: 20px; max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary); }
+    .skill-node span { margin-top: 8px; font-size: 0.75rem; font-weight: 500; background: var(--button-bg); padding: 4px 10px; border-radius: 20px; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary); }
     .node-admin-controls { position: absolute; top: -10px; right: -10px; background: var(--bg-card); border-radius: 20px; padding: 2px 6px; display: flex; gap: 4px; box-shadow: 0 1px 3px var(--shadow); }
     .node-admin-controls button { background: none; border: none; cursor: pointer; font-size: 0.7rem; color: var(--text-primary); }
     .order-controls { position: absolute; bottom: -25px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px; background: var(--bg-card); padding: 2px 6px; border-radius: 20px; box-shadow: 0 1px 2px var(--shadow); }
@@ -313,7 +313,7 @@
   }
 
   // ========== POSICIONAMIENTO DE ÁRBOL ==========
-  function calculatePositions(rootSkills, startX = 400, startY = 80, levelGapX = 220, levelGapY = 130) {
+  function calculatePositions(rootSkills, startX = 400, startY = 80, levelGapX = 13', levelGapY = 180) {
     const childrenMap = new Map();
     allSkills.forEach(skill => {
       if (skill.parent_id) {
@@ -350,7 +350,7 @@
     let globalOffset = startX;
     for (let root of roots) {
       dfs(root, 0, globalOffset);
-      globalOffset += 300;
+      globalOffset += 180;
     }
     return positions;
   }
