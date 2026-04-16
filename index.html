@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-  <title>Árbol de Habilidades - Facciones</title>
+  <title>Bases - Facciones</title>
   <link rel="icon" type="image/png" href="https://cdn.discordapp.com/attachments/1125507288220827678/1494000085443547196/Logo_Choque_2.png?ex=69e10381&is=69dfb201&hm=e4b665dccdaedea398c4b045a3184ab814515d36679f852276f0242e95248da9">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
@@ -60,6 +60,8 @@
     body { background: var(--bg-body); height: 100vh; display: flex; overflow: hidden; transition: background 0.2s, color 0.2s; }
     .sidebar { width: 280px; background: var(--bg-sidebar); border-right: 1px solid var(--border-sidebar); display: flex; flex-direction: column; padding: 1.5rem; gap: 1rem; overflow-y: auto; z-index: 10; }
     .sidebar h2 { font-size: 1.3rem; color: var(--text-primary); }
+    .sidebar h2 { display: flex; align-items: center; justify-content: center; gap: 10px; }
+    .sidebar-icon { width: 24px; height: 24px; object-fit: contain; }
     .search-box { padding: 0.5rem; border: 1px solid var(--input-border); border-radius: 0.75rem; width: 100%; background: var(--bg-card); color: var(--text-primary); }
     .faction-list { list-style: none; display: flex; flex-direction: column; gap: 0.5rem; flex: 1; overflow-y: auto; }
     .faction-item { padding: 0.75rem; background: var(--bg-faction-item); border-radius: 0.75rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; color: var(--text-primary); }
@@ -127,8 +129,11 @@
 <body class="dark-mode">
 
 <div class="sidebar">
-  <h2>🏰 Facciones</h2>
-  <input type="text" id="searchFaction" class="search-box" placeholder="Buscar facción...">
+<h2>
+  <img src="https://cdn.discordapp.com/attachments/1125507288220827678/1494000085443547196/Logo_Choque_2.png?ex=69e10381&is=69dfb201&hm=e4b665dccdaedea398c4b045a3184ab814515d36679f852276f0242e95248da9" alt="icono" class="sidebar-icon">
+  Facciones
+  <img src="https://cdn.discordapp.com/attachments/1125507288220827678/1494000085443547196/Logo_Choque_2.png?ex=69e10381&is=69dfb201&hm=e4b665dccdaedea398c4b045a3184ab814515d36679f852276f0242e95248da9" alt="icono" class="sidebar-icon">
+</h2>  <input type="text" id="searchFaction" class="search-box" placeholder="Buscar facción...">
   <ul id="factionList" class="faction-list"></ul>
   <button id="addFactionBtn" class="add-faction-btn hidden">+ Nueva facción</button>
 </div>
